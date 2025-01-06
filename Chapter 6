@@ -1,0 +1,121 @@
+#Annotating tag object from CageR
+peakAnno <- annotatePeak(normalized_counts, TxDb = txdb,  annoDb = NULL, tssRegion = c(-1000, 100), flankDistance=1000,sameStrand = TRUE, verbose = FALSE, genomicAnnotationPriority = c("Exon","Promoter", "5UTR", "3UTR", "Intron","Downstream", "Intergenic"))
+
+#Selecting TSSs within promoter-proximal region or within gene body 
+peakanno_sub=peakanno%>%filter(distanceToTSS> -1000)
+peakanno_sub=peakanno_sub%>%filter(distanceToTSS<geneLength)
+
+#annotating alternative TSSs
+tss_per_gene <- peakanno_sub %>%
+  group_by(geneId) %>%
+  summarize(num_tss = n_distinct(start))
+
+tss_per_gene <- tss_per_gene %>%
+  mutate(tss_count = ifelse(num_tss == 1, "single_tss", "alternative_tss"))
+
+peakanno_sub <- peakanno_sub %>%
+  left_join(tss_per_gene, by = "geneId")
+
+#Exonic/ORF analysis 
+peakanno_sub <- peakanno_sub %>%
+  mutate(location = case_when(
+    tss_count=="alternative_tss" & distanceToTSS > 0 ~ "exonic",
+    tss_count=="alternative_tss" & distanceToTSS <= 0 ~ "promoter",
+    TRUE ~ NA))
+
+##Calculating alternative TSS ratio
+peakanno_sub <- peakanno_sub %>%
+  group_by(geneId) %>%
+  mutate(TSS_order = ifelse(tss_count == "alternative_tss", row_number(distanceToTSS), NA)) %>%
+  ungroup()
+
+TIR6h.rep2_ratio <- peakanno_sub %>% filter(tss_count == "alternative_tss")%>%
+  group_by(geneId) %>%
+  mutate(TIR6h_2_first_TSS_expr = ifelse(TSS_order == 1, TIR6h.rep2, NA),
+         TIR6h_2_sum_other_TSS_expr = ifelse(TSS_order != 1, TIR6h.rep2, 0)) %>%
+  mutate(TIR6h_2_sum_other_TSS_expr = sum(TIR6h_2_sum_other_TSS_expr, na.rm = TRUE)) %>%
+  filter(TSS_order == 1) %>%
+  mutate(TIR6h.rep2_ratio = TIR6h_2_first_TSS_expr / TIR6h_2_sum_other_TSS_expr) %>%
+  ungroup()
+
+TIR6h.rep3_ratio <- peakanno_sub %>% filter(tss_count == "alternative_tss")%>%
+  group_by(geneId) %>%
+  mutate(TIR6h_3_first_TSS_expr = ifelse(TSS_order == 1, TIR6h.rep3, NA),
+         TIR6h_3_sum_other_TSS_expr = ifelse(TSS_order != 1, TIR6h.rep3, 0)) %>%
+  mutate(TIR6h_3_sum_other_TSS_expr = sum(TIR6h_3_sum_other_TSS_expr)) %>%
+  filter(TSS_order == 1) %>%
+  mutate(TIR6h.rep3_ratio = TIR6h_3_first_TSS_expr / TIR6h_3_sum_other_TSS_expr) %>%
+  ungroup()
+
+TOP6h.rep2_ratio <- peakanno_sub %>% filter(tss_count == "alternative_tss")%>%
+  group_by(geneId) %>%
+  mutate(TOP6h_2_first_TSS_expr = ifelse(TSS_order == 1, TOP6h.rep2, NA),
+         TOP6h_2_sum_other_TSS_expr = ifelse(TSS_order != 1, TOP6h.rep2, 0)) %>%
+  mutate(TOP6h_2_sum_other_TSS_expr = sum(TOP6h_2_sum_other_TSS_expr, na.rm = TRUE)) %>%
+  filter(TSS_order == 1) %>%
+  mutate(TOP6h.rep2_ratio = TOP6h_2_first_TSS_expr / TOP6h_2_sum_other_TSS_expr) %>%
+  ungroup()
+
+TOP6h.rep3_ratio <- peakanno_sub %>% filter(tss_count == "alternative_tss")%>%
+  group_by(geneId) %>%
+  mutate(TOP6h_3_first_TSS_expr = ifelse(TSS_order == 1, TOP6h.rep3, NA),
+         TOP6h_3_sum_other_TSS_expr = ifelse(TSS_order != 1, TOP6h.rep3, 0)) %>%
+  mutate(TOP6h_3_sum_other_TSS_expr = sum(TOP6h_3_sum_other_TSS_expr, na.rm = TRUE)) %>%
+  filter(TSS_order == 1) %>%
+  mutate(TOP6h.rep3_ratio = TOP6h_3_first_TSS_expr / TOP6h_3_sum_other_TSS_expr) %>%
+  ungroup()
+
+peakannostats=left_join(TOP6h.rep2_ratio,TOP6h.rep3_ratio)
+peakannostats=left_join(peakannostats,TIR6h.rep2_ratio)
+peakannostats=left_join(peakannostats,TIR6h.rep3_ratio)
+
+##calculating whether change in ratio is significant
+
+arrays_list <- list()
+# Define the desired dimensions
+array_dims <- c(2, 2, 2)
+dinames = list(
+  Group=c("TIR6h","TOP6h"),
+  TSS=c("first","alternative"),
+  Replicate=c("1","2"))
+# Iterate through each row and convert it to an array with desired dimensions
+for (i in 1:nrow(peakannostats)) {
+  gene_name <- peakannostats$geneId[i]
+  row_values <- unlist(peakannostats[i, -1])
+  row_array <- array(row_values, dim = array_dims,dimnames = dinames)
+  arrays_list[[gene_name]] <- row_array
+}
+
+cmh_results_list <- list()
+for (gene_name in names(arrays_list))  {
+  cmh_result <- tryCatch({
+    mantelhaen.test(arrays_list[[gene_name]])
+  }, error = function(e) {
+    NA  # Return NA if the CMH test cannot be performed
+  })
+  cmh_results_list[[gene_name]] <- cmh_result
+}
+
+# Combine the list of data frames into one data frame using dplyr::bind_row
+library(broom)
+dataframes <- lapply(names(cmh_results_list), function(gene_id) {
+  tidy(cmh_results_list[[gene_id]]) %>%
+    mutate(geneId = gene_id)  # Add the gene ID to the result
+})
+dataframes <- bind_rows(dataframes)
+
+#calculating distance between alternative TSSs
+peakanno_sub_atss=peakanno_sub%>%filter(num_tss==2)
+tss_distances <- peakanno_sub_atss %>%
+  group_by(geneId) %>%                             # Group by gene
+  summarise(
+    tss1_end = end[TSS_order == 1],                 # Get the 'end' of TSS 1
+    tss2_start = start[TSS_order == 2],             # Get the 'start' of TSS 2
+    distance = tss2_start - tss1_end                # Calculate distance between TSS 2 start and TSS 1 end
+  ) %>%
+  ungroup()
+tss_distances$distance=abs(tss_distances$distance)
+tss_distances=left_join(tss_distances,merged_df,by="geneId")
+
+
+
