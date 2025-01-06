@@ -1,0 +1,178 @@
+library(tidyverse)
+library(ggplot2)
+library(reshape2)
+library(nlcor)
+
+#mm10.fair+new_CAGE_peaks_phase1and2_tpm_ann.osc.txt.gz - CAGE peak based expression table (RLE normalized) for mouse with annotation
+#the first 1081 rows are just the names of the different samples and so can be skipped 
+mm10_CAGE <- read.table("Y:/home/shared/8_Shared/Mammalian/Datasets_TSS/mouse/CAGE/FANTOM5/CAGE_peaks_expression/mm10_fair+new_CAGE_peaks_phase1and2_tpm_ann.osc.txt",skip = 1081,header=T, sep = "\t")
+
+##subset for ASH2L
+mm10_ASH2L = subset(mm10_CAGE, mm10_CAGE$entrezgene_id=="23808"|mm10_CAGE$mgi_id=="1344416")
+
+##plot p1 vs p2
+#transpose rows and columns
+mm10_ASH2Lt=t(mm10_ASH2L)
+#rename column names (as now columns) but have to use old dataframe (as here were the column names) as the reference
+colnames(mm10_ASH2Lt)=mm10_ASH2L$short_description
+mm10_ASH2lt=data.frame(mm10_ASH2lt)
+mm10_ASH2lt[,]=as.data.frame(apply(mm10_ASH2lt[,],2,as.numeric))
+
+
+ggplot(mm10_ASH2lt, aes(x=p1.Ash2l, y=p2.Ash2l))+
+  geom_point(size=0.6)
+
+###adding new column based on sample type
+NIH3T3_or_MEF = c("CNhs11093","CNhs12130")
+mESCs = c("CNhs14101","CNhs14102","CNhs14103","CNhs14104","CNhs14109","CNhs14098","CNhs14099", "CNhs14100","CNhs14085","CNhs14086","CNhs14087","CNhs14116","CNhs14117","CNhs14091","CNhs14092","CNhs14093","CNhs14114","CNhs14115","CNhs14118","CNhs14119","CNhs14122","CNhs14121", "CNhs14094","CNhs14095","CNhs14097","CNhs14088","CNhs14089","CNhs14090","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day01.2c.20biol_rep1.CNhs14105.14358.155I2.mm10.nobarcode","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day01.2c.20biol_rep2.CNhs14110.14363.155I7.mm10.nobarcode","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day01.2c.20biol_rep2.CNhs14110.14363.155I7.mm10.nobarcode","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day02.2c.20biol_rep2.CNhs14111.14364.155I8.mm10.nobarcode","tpm.ES.46C.20derived.20epistem.20cells.2c.20biol_rep3.CNhs14125.14377.156B3.mm10.nobarcode","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day02.2c.20biol_rep1.CNhs14106.14359.155I3.mm10.nobarcode","tpm.ES.46C.20derived.20epistem.20cells.2c.20biol_rep1.CNhs14123.14375.156B1.mm10.nobarcode"
+,"tpm.ES.46C.20derived.20epistem.20cells.2c.20biol_rep2.CNhs14124.14376.156B2.mm10.nobarcode")
+trophoblast = c("trophoblast")
+mESCs_trophoblast = c("CNhs14101","CNhs14102","CNhs14103","CNhs14104","CNhs14109","CNhs14098","CNhs14099", "CNhs14100","CNhs14085","CNhs14086","CNhs14087","CNhs14116","CNhs14117","CNhs14091","CNhs14092","CNhs14093","CNhs14114","CNhs14115","CNhs14118","CNhs14119","CNhs14122","CNhs14121", "CNhs14094","CNhs14095","CNhs14097","CNhs14088","CNhs14089","CNhs14090","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day01.2c.20biol_rep1.CNhs14105.14358.155I2.mm10.nobarcode","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day01.2c.20biol_rep2.CNhs14110.14363.155I7.mm10.nobarcode","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day01.2c.20biol_rep2.CNhs14110.14363.155I7.mm10.nobarcode","tpm.trophoblast.20stem.20cell.20line.20B1.20differentiation.2c.20day01.2c.20biol_rep1.CNhs13527.13298.142H4.mm10.nobarcode","tpm.trophoblast.20stem.20cell.20line.20Rybp.20differentiation.2c.20day02.2c.20biol_rep1.CNhs13521.13292.142G7.mm10.nobarcode","tpm.trophoblast.20stem.20cell.20line.20R1AB.20differentiation.2c.20day00.2c.20biol_rep1.CNhs13481.13283.142F7.mm10.nobarcode","tpm.trophoblast.20stem.20cell.20line.20B1.20differentiation.2c.20day00.2c.20biol_rep1.CNhs13526.13297.142H3.mm10.nobarcode"
+,"tpm.trophoblast.20stem.20cell.20line.20Rybp.20differentiation.2c.20day00.2c.20biol_rep1.CNhs13519.13290.142G5.mm10.nobarcode","
+tpm.trophoblast.20stem.20cell.20line.20R1AB.20differentiation.2c.20day01.2c.20biol_rep1.CNhs13514.13284.142F8.mm10.nobarcode","tpm.trophoblast.20stem.20cell.20line.20Rybp.20differentiation.2c.20day01.2c.20biol_rep1.CNhs13520.13291.142G6.mm10.nobarcode","tpm.trophoblast.20stem.20cell.20line.20B1.20differentiation.2c.20day02.2c.20biol_rep1.CNhs13528.13299.142H5.mm10.nobarcode","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day02.2c.20biol_rep2.CNhs14111.14364.155I8.mm10.nobarcode","tpm.ES.46C.20derived.20epistem.20cells.2c.20biol_rep3.CNhs14125.14377.156B3.mm10.nobarcode","tpm.ES.46C.20embryonic.20stem.20cells.2c.20neuronal.20differentiation.2c.20day02.2c.20biol_rep1.CNhs14106.14359.155I3.mm10.nobarcode","tpm.ES.46C.20derived.20epistem.20cells.2c.20biol_rep1.CNhs14123.14375.156B1.mm10.nobarcode"
+,"tpm.ES.46C.20derived.20epistem.20cells.2c.20biol_rep2.CNhs14124.14376.156B2.mm10.nobarcode")
+Stem_cell_differentiation = c("CNhs13526","CNhs13527","CNhs13528","CNhs13529","CNhs13535","CNhs13536","CNhs13530","CNhs13481","CNhs13514","CNhs13515","CNhs13516","CNhs13517","CNhs13518","CNhs13482","CNhs13519","CNhs13520", "CNhs13521","CNhs13522","CNhs13523","CNhs13524","CNhs13525","CNhs14123","CNhs14124","CNhs14125","CNhs14126","CNhs14127","CNhs14105","CNhs14106","CNhs14110","CNhs14111","CNhs14112","CNhs14107","CNhs14108","CNhs14113","CNhs13636","CNhs13635","tpm.trophoblast.20stem.20cell.20line.20B1.20differentiation.2c.20day05.2c.20biol_rep1.CNhs13636.13302.142H8.mm10.nobarcode
+","tpm.trophoblast.20stem.20cell.20line.20B1.20differentiation.2c.20day04.2c.20biol_rep1.CNhs13635.13301.142H7.mm10.nobarcode
+")
+TestisPlacentaAmnion = c("placenta","amnion","testis")
+Neuronal=c("cerebellar","Neurons","cerebellum","hippocampus","corpus","Granule")
+
+mESCrowindex=grep(paste(mESCs,collapse="|"), rownames,ignore.case=TRUE)
+trophoblast=grep(paste(trophoblast,collapse="|"), rownames,ignore.case=TRUE)
+Stem_cell_differentiationindex=grep(paste(Stem_cell_differentiation,collapse="|"), rownames,ignore.case=TRUE)
+TestisPlacentaAmnionindex=grep(paste(TestisPlacentaAmnion,collapse="|"), rownames,ignore.case=TRUE)
+Neuronalrowindex=grep(paste(Neuronal,collapse="|"), rownames,ignore.case=TRUE)
+NIH3T3_or_MEFrowindex=grep(paste(NIH3T3_or_MEF,collapse="|"), rownames,ignore.case=TRUE)
+
+mm10_ASH2lt$sample_type = "Other"
+mm10_ASH2lt[mESCrowindex,"sample_type"] = "mESC"
+mm10_ASH2lt[trophoblast,"sample_type"] = "trophoblast"
+mm10_ASH2lt[Stem_cell_differentiationindex,"sample_type"] = "Stem_cell_differentiation"
+mm10_ASH2lt[TestisPlacentaAmnionindex,"sample_type"] = "Testis_Placenta_Amnion"
+mm10_ASH2lt[Neuronalrowindex,"sample_type"] = "Neuronal"
+mm10_ASH2lt[NIH3T3_or_MEFrowindex,"sample_type"] = "Fibroblast"
+mm10_ASH2lt$sample_type <- factor(mm10_ASH2lt$sample_type , levels=c("mESC", "trophoblast", "Stem_cell_differentiation", "Neuronal","Testis_Placenta_Amnion","Fibroblast","Other"))
+
+mm10_ASH2lt %>% arrange(desc(sample_type)) %>%
+  ggplot(aes(x=p1.Ash2l, y=p2.Ash2l, color=sample_type))+
+  geom_point(shape=16,size=1) +
+  theme_bw() +
+  labs (x= "Downstream TSS expression") +
+  scale_y_log10(name="Upstream TSS expression")+
+  scale_colour_manual(breaks=c("mESC","Stem_cell_differentiation","Testis_Placenta_Amnion","Neuronal","Fibroblast","Other"),
+                      values=c("#825CA6", "#C43E96", "#E7872B","#155289","#5AAA46","#D0D3D6"))
+  
+##boxplots
+mm10_ASH2lt %>% 
+  pivot_longer(cols=c("p1.Ash2l","p2.Ash2l","p3.Ash2l"),names_to="promoter",values_to="TPM")%>%
+  ggplot(aes(x=sample_type,y=TPM,colour=promoter))+
+  geom_boxplot()+
+  theme_bw()+
+  scale_y_log10()+
+  scale_colour_manual(values=c("#28827A","#4F508C","grey"))+
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1))
+
+##finding correlation
+y=mm10_ASH2lt$p1.Ash2l
+x=mm10_ASH2lt$p2.Ash2l
+df=data.frame(x,y)
+df=df[df$x>0|df$y>0,]
+df$x[df$x == 0] = 0.01
+df$y[df$y==0]=0.01
+ggplot(df, aes(x, y)) +
+  geom_point()
+
+###and for human data
+hg38_CAGE <- read.table("C:/Users/elgoode/Dropbox (The Francis Crick)/Ellie/01.23 backup/Documents/Papers data/hg38_fair+new_CAGE_peaks_phase1and2_tpm_ann.osc.txt.gz",header=T, sep = "\t")
+
+##subset for ASH2L
+hg38_CAGE = subset(hg38_CAGE, hg38_CAGE$entrezgene_id=="9070")
+hg38_CAGEt=t(hg38_CAGE)
+#rename column names (as now columns) but have to use old dataframe (as here were the column names) as the reference
+colnames(hg38_CAGEt)=hg38_CAGE$description
+
+ggplot(hg38_CAGEt, aes(x=CAGE_peak_1_at_ASH2L_5end, y=CAGE_peak_2_at_ASH2L_5end))+
+  geom_point(size=0.6)
+ggplot(hg38_CAGEt, aes(x=CAGE_peak_1_at_ASH2L_5end, y=CAGE_peak_3_at_ASH2L_5end))+
+  geom_point(size=0.6)
+ggplot(hg38_CAGEt, aes(x=CAGE_peak_2_at_ASH2L_5end, y=CAGE_peak_3_at_ASH2L_5end))+
+  geom_point(size=0.6)
+
+rownames=row.names(hg38_CAGEt)
+
+Neuronal=c("cerebellar","Neurons","cerebellum","hippocampus","corpus","Granule","gyrus","nigra","frontal","parietal")
+Fibroblast=c("Fibroblast")
+cancer = c("lymphoma", "sarcoma", "tumor","leukemia","carcinoma","adenocarcinoma","carcinoid","cancer","choriocarcinoma","chondrosarcoma","fibrosarcoma","glioblastoma","glioma","hepatoblastoma","heptoma","lymphoblastoid")
+stem=c("stem")
+TestisPlacentaAmnion=c("Testis","Testicular","Placenta","Amnion")
+Embryonic_Stem=c("Embryonic.20Stem")
+Primary=c("donor1","donor2","donor3","donor4","donor")
+Tissue=c("adult","fetal")
+Cellline=c("cell.20line")
+
+
+Neuronalrowindex=grep(paste(Neuronal,collapse="|"), rownames,ignore.case=TRUE)
+cancerrowindex=grep(paste(cancer,collapse="|"), rownames,ignore.case=TRUE)
+stemrowindex=grep(paste(stem,collapse="|"), rownames,ignore.case=TRUE)
+primaryindex=grep(paste(Primary,collapse="|"), rownames,ignore.case=TRUE)
+adultindex=grep(paste(Tissue,collapse="|"), rownames,ignore.case=TRUE)
+celllineindex=grep(paste(Cellline,collapse="|"), rownames,ignore.case=TRUE)
+Fibroblastrowindex=grep(paste(Fibroblast,collapse="|"), rownames,ignore.case=TRUE)
+TestisPlacentaAmnionrowindex=grep(paste(TestisPlacentaAmnion,collapse="|"), rownames,ignore.case=TRUE)
+Embryonicstemcellindex=grep(paste(Embryonic_Stem,collapse="|"), rownames,ignore.case=TRUE)
+
+hg38_CAGEt$sample_type="Other"
+hg38_CAGEt[cancerrowindex,"sample_type"] = "Cancer"
+hg38_CAGEt[Neuronalrowindex,"sample_type"] = "Neuronal"
+hg38_CAGEt[stemrowindex,"sample_type"] = "Stem cell"
+hg38_CAGEt[primaryindex,"sample_type"] = "Primary cell"
+hg38_CAGEt[adultindex,"sample_type"] = "Tissue"
+hg38_CAGEt[celllineindex,"sample_type"] = "Cell line"
+hg38_CAGEt[Fibroblastrowindex,"sample_type"] = "Fibroblast"
+hg38_CAGEt[TestisPlacentaAmnionrowindex,"sample_type"] = "Testis_Placenta_Amnion"
+hg38_CAGEt[Embryonicstemcellindex,"sample_type"] = "Embryonic stem cell"
+hg38_CAGEt$sample_type <- factor(hg38_CAGEt$sample_type , levels=c("Embryonic stem cell","Stem cell", "Cancer", "Primary cell","Tissue","Testis_Placenta_Amnion","Cell line","Neuronal", "Fibroblast","Other"))
+hg38_CAGEt=hg38_CAGEt%>%mutate(p2plusp3=CAGE_peak_2_at_ASH2L_5end+CAGE_peak_3_at_ASH2L_5end)
+
+
+hg38_CAGEt %>% arrange(desc(hg38_CAGEt))%>%
+  ggplot(aes(x=CAGE_peak_1_at_ASH2L_5end, y=CAGE_peak_2_at_ASH2L_5end, color=sample_type))+
+  geom_point(size=1) +
+  theme_bw() +
+  labs (x= "P1 expression", y= "P2 expression") +
+  scale_colour_manual(breaks=c("Primary cell","Tissue","Cancer","Cell line","Embryonic stem cell","Stem cell","Testis_Placenta_Amnion","Fibroblast","Neuronal","Other"),
+                      values=c("lightblue","#171717","#C84D4C","#F0E2B6","#825CA6","#C43E96","#E7872B","#5AAA46","#155289","#D0D3D6"))
+
+hg38_CAGEt %>% arrange(desc(hg38_CAGEt))%>%
+  ggplot(aes(x=CAGE_peak_1_at_ASH2L_5end, y=p2plusp3, color=sample_type))+
+  geom_point(size=1) +
+  theme_bw() +
+  labs (x= "P1 expression", y= "P2+P3 expression") +
+  scale_colour_manual(breaks=c("Primary cell","Tissue","Cancer","Cell line","Embryonic stem cell","Stem cell","Testis_Placenta_Amnion","Fibroblast","Neuronal","Other"),
+                      values=c("lightblue","#171717","#C84D4C","#F0E2B6","#825CA6","#C43E96","#E7872B","#5AAA46","#155289","#D0D3D6"))
+
+hg38_CAGEt %>% arrange(desc(hg38_CAGEt))%>%
+  ggplot(aes(x=CAGE_peak_1_at_ASH2L_5end, y=CAGE_peak_3_at_ASH2L_5end, color=sample_type))+
+  geom_point(size=1) +
+  theme_bw() +
+  labs (x= "P1 expression", y= "P3 expression") +
+  scale_colour_manual(breaks=c("Cancer","Primary cell","Stem cell","Tissue","Cell line","Other"),
+                      values=c("#E7872B","lightblue","#825CA6","#171717","#C43E96","#5AAA46","#D0D3D6"))
+
+hg38_CAGEt %>% 
+  pivot_longer(cols=c("CAGE_peak_1_at_ASH2L_5end","CAGE_peak_2_at_ASH2L_5end","CAGE_peak_3_at_ASH2L_5end"),names_to="promoter",values_to="TPM")%>%
+  ggplot(aes(x=sample_type,y=TPM,colour=promoter))+
+  geom_boxplot()+
+  scale_y_log10()+
+  theme_bw()+
+  scale_colour_manual(values=c("grey","#28827A","#4F508C"))+
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1))
+
+hg38_CAGEt %>% 
+  pivot_longer(cols=c("CAGE_peak_1_at_ASH2L_5end","CAGE_peak_2_at_ASH2L_5end","CAGE_peak_3_at_ASH2L_5end","p2plusp3"),names_to="promoter",values_to="TPM")%>%
+  ggplot(aes(x=sample_type,y=TPM,colour=promoter))+
+  geom_boxplot()+
+  scale_y_log10()+
+  theme_bw()+
+  scale_colour_manual(values=c("#4F508C","#28827A","grey","black"))+
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1))
