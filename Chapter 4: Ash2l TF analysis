@@ -1,0 +1,197 @@
+###provided csv with the coordinates of TSSs with 1000 bp upstream and 500 bp downstream 
+query_ASH2L <- read.csv("ASH2L.csv")
+
+##http://genome.ucsc.edu/cgi-bin/hgTables from here collected ReMAP for all of chr8
+REMAP=read.delim(file="txt")
+colnames(REMAP)[1] <- "chr"
+colnames(REMAP)[2] <- "start"
+colnames(REMAP)[3] <- "end"
+REMAP=makeGRangesFromDataFrame(REMAP,keep.extra.columns = TRUE)
+features=c(features,REMAP)
+
+###put all features of interest into an R list object then provide this object to the features option of goldmine. http://www.jeffbio.com/goldmine/docs/#annotation-of-features
+gm <- goldmine(query=query_ASH2L,genome=genome,features=features,cachedir=cachedir)
+
+##under the “context” table, there will be new columns, one for each feature set, representing the percent overlap of the query range with ranges from the feature set
+##a detailed accounting of each overlap in “long” format is available in the “features” list. This sub-list contains a table for each feature set, and contains one row for each pair of query to feature overlaps
+
+##draw a length-matched pool of sequences, Returned ranges are required to (1) not overlap with each other or the query, (2) not extend off chromosome ends, (3) not extend over assembly gaps as defined in the UCSC "gap" table for the given genome assembly. sampling 100 more regions as in https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4937336/
+Background=drawGenomePool(query=query_ASH2L, n=100, chrs = NULL, genome, cachedir, sync = TRUE)
+
+ChIP_background=(gm_background[["features"]][[4]])
+ChIP_ASH2L=(gm[["features"]][[4]])
+##here have P2 = upstream. 
+ChIP_ASH2L$promoters = ifelse(ChIP_ASH2L$query.start==25846621, "P2","P1")
+
+##filtering for overlap % and calculating the number of chromatin factors that bind
+ChIP_ASH2L_filter=ChIP_ASH2L%>%subset(overlap.feature.per==100)
+unique_tfs_upstream=unique(ChIP_ASH2L_filter$feature_TF[ChIP_ASH2L_filter$promoters == "upstream"])
+unique_tfs_downstream=unique(ChIP_ASH2L_filter$feature_TF[ChIP_ASH2L_filter$promoters == "downstream"])
+unique_tfs_both = intersect(unique_tfs_upstream, unique_tfs_both)
+
+###looking to see whether can look at correlation with expression data
+mm10_CAGE <- read.table("Y:/home/shared/8_Shared/Mammalian/Datasets_TSS/mouse/CAGE/FANTOM5/CAGE_peaks_expression/mm10_fair+new_CAGE_peaks_phase1and2_tpm_ann.osc.txt",skip = 1081,header=T, sep = "\t")
+mm10_CAGE_sub=mm10_CAGE
+mm10_CAGE_sub$short_description <- sub(".*@", "", mm10_CAGE_sub$short_description)
+mm10_CAGE_sub <- mm10_CAGE_sub %>% mutate(short_description = toupper(short_description))
+
+##just extracting the expression data for the TFs that have binding profiles over Ash2L
+TFs_to_search=(ChIP_ASH2L$feature_TF)
+TFs_to_search=gsub("-","",TFs_to_search)
+TFs_to_search=unique(TFs_to_search)
+
+mm10_CAGE_sub <- mm10_CAGE_sub %>% filter(short_description %in% TFs_to_search)
+##Join all the strings into a single regular expression pattern of the type (str1|str2|str3). Then do a grepl to determine which lines contain that text in column
+#pat = paste(unlist (TFs_to_search),collapse = "|")
+#pat = paste0("(",pat,")")
+#mm10_CAGE_sub=mm10_CAGE_sub[grepl(pattern = pat,x = mm10_CAGE_sub$short_description, ignore.case=TRUE),]
+#test=subset(mm10_CAGE_sub, mm10_CAGE_sub$entrezgene_id=="23808"|mm10_CAGE_sub$mgi_id=="1344416")
+
+###summing up the expression data for all the promoters of each TF
+mm10_CAGE_sub_test = mm10_CAGE_sub_test %>% group_by(short_description) %>% summarise_each(funs(sum))
+
+###looking at cells which express high Ash2l
+Ash2l_promoter_expression=read.csv(file="promoterexpressionmm10_ASH2L_transpose.csv")
+
+##top 20% rows = 215
+slice = round(nrow(Ash2l_promoter_expression)/5, digits = 0)
+Ash2L_P1_high = Ash2l_promoter_expression %>% arrange(desc(p1.Ash2l)) %>% dplyr::slice(1:215)
+Ash2l_P1_low = Ash2l_promoter_expression %>% arrange(p1.Ash2l) %>% dplyr::slice(1:215)
+Ash2l_P2_high = Ash2l_promoter_expression %>% arrange(desc(p2.Ash2l)) %>% dplyr::slice(1:215)
+
+#wilcox test function
+##now trying for the loop
+cols = colnames(ASH2L_P1)
+result = data.frame(
+  gene=colnames(ASH2L_P1[2:361]),
+  group1=NA,
+  group2=NA,
+  n1=NA,
+  n2=NA,
+  statistic=NA,
+  p=NA,
+  p.signif=NA
+)
+
+result_P2 = data.frame(
+  gene=colnames(ASH2L_P2[2:361]),
+  group1=NA,
+  group2=NA,
+  n1=NA,
+  n2=NA,
+  statistic=NA,
+  p=NA,
+  p.signif=NA
+)
+
+for (i in (2:361)) {
+  print(i)
+  if(length(unique(ASH2L_P1[,i])) ==1) {
+    next
+  }
+  formula = as.formula( paste(cols[i], cols[362], sep="~") )
+  stat.test <- add_significance(wilcox_test(data=ASH2L_P1, formula=formula))
+  result[i,"gene"]=stat.test$.y.
+  result[i,"group1"]=stat.test$group1
+  result[i,"group2"]=stat.test$group2
+  result[i,"n1"]=stat.test$n1
+  result[i,"n2"]=stat.test$n2
+  result[i,"statistic"]=stat.test$statistic
+  result[i,"p"]=stat.test$p
+  result[i,"p.signif"]=stat.test$p.signif
+}
+
+cols = colnames(ASH2L_P2)
+for (i in (2:361)) {
+  print(i)
+  if(length(unique(ASH2L_P2[,i])) ==1) {
+    next
+  }
+  formula = as.formula( paste(cols[i], cols[362], sep="~") )
+  stat.test <- add_significance(wilcox_test(data=ASH2L_P2, formula=formula))
+  result_P2[i,"gene"]=stat.test$.y.
+  result_P2[i,"group1"]=stat.test$group1
+  result_P2[i,"group2"]=stat.test$group2
+  result_P2[i,"n1"]=stat.test$n1
+  result_P2[i,"n2"]=stat.test$n2
+  result_P2[i,"statistic"]=stat.test$statistic
+  result_P2[i,"p"]=stat.test$p
+  result_P2[i,"p.signif"]=stat.test$p.signif
+}
+
+ASH2L_P1_result = ASH2L_P1_result %>% mutate(
+  P1_high=as.numeric(P1_high),
+  P1_low=as.numeric(P1_low),
+  logfc=log2(P1_high/P1_low),
+  p.adj=p.adjust(p)
+)
+
+ASH2L_P2_result = ASH2L_P2_result %>% mutate(
+  P2_high=as.numeric(P2_high),
+  P2_low=as.numeric(P2_low),
+  logfc=log2(P2_high/P2_low),
+  p.adj=p.adjust(p)
+)
+
+##TF motif analysis
+library(MotifDb)
+library(JASPAR2022)
+library(TFBSTools)
+library(motifmatchr)
+library(IRanges)
+
+## Useful resource: https://rockefelleruniversity.github.io/RU_ATACseq/presentations/singlepage/RU_ATAC_part3.html
+##create character string 500bp up and 500 bp down 
+Ash2l_up_tss="tcccggaagcattccatgttttaaagagcatatttaaaactaaatataagaaaagatgttatgctaagtgtggtggcactgtgtggtccagaattctagatactgaggttagaagatcataaatttgaagccagtctgagatacatagtgagaccctgtttctaaaaaggaagcagggggcagagatgagaagagaggagaggaggggaggggaagggagaggggaggcaggtgaggggagaagggagaggggaggagaggagaggggaggagaggagaggagaggttgcgaaagagggttctttttttattttttcttttgtacaccgtgtattcagattctaattactgcgacagttgcaggtcaactgactcaggtctcaatgatatgcaaaagttgttttctgtcacttctgattggttaatacatagctggtcagccaatggctggcaggagagggagaggcgggacttccgattccaGTGAGGCAGGTTCGGGTGGAAAGAAGGAAGAAGGGAGGTCAACTGGAGTAAGTCACCAAGGAGTCGCCATTGAGACACGGATGAAGGAGGAGGCCAGGACGAGACCAAGATGATAGgtaacgccacagtggttgggaagtgactgggacgtgactgggaagtaggccaagccagcatagtcaggttagaatagatcagaatctgcccgcctatagtgcaagaaccttattgaaaaatgtaaaggtctctatcatttgggaacaagagccggcgtagaaaagccctgtacttttacaaaagagaaaagagagtagagaaaattaaaagagagctggtaagagggcctgatgccaaggtcaaacacttgaattcaacccctagacccatacagtgggaagatatcaagggctgcgaattgtcttctgaccgccatgcttgcggggggtggggtgggggtggcccaagcccccagcgcgcgcacacgcatttgtacatgcatgcaaatgcataagaaataaatgcgataattttaagaaaggaattaagaagaaggcccatgaaatgaaatgactc"
+
+Ash2l_down_tss="ccacccacaactacctcgggctctctggaatcagacctctagtctctccaaaagccgcctggaaacggggcttctggcggccagctacgcagttacagacgctcccggcaggtgtgagccagagtgctcctttgttgttgtttggaagtttcctacgttttagggttttagtatgatcgcctgctccgcacagtgtaaaggggagtctctcacatcctcatatgtgccgtgatttccactcttagccacgactatgagcaggcgttttgaataattcaagtcccaagaggaaagcaaaggacagacctcctaagtggctcccttcaaacctgggcaatccgagttgcgccctgcctttttctttcttcctttctttttttttttttttctggccttaaagcggcggactcaaagtgcgtccttcccaagtaagtggcgggccccccaacaaaaggtctttcccactttaagagcgccgtgcgtggcggcaactcgccgcatagatatattctcgcgagagcttgggaaggagcagcgatggcggcggctggagcgggtcctggtccgggagtcagcgccggccctggtcccggagccgctgcaagtgccacaacggcggaggaccgagagacagagccggtggccgcgggggctggcgaggggccgtcagccgccccgggagcggagcccagctccggagaggccgaaagtgggtaaggcaatccactcgcagccccggggacgcgcgagggcccgcccctcgtggaagcccgcggctcgcgccgcccggtgtcgccctccggatccaggtcccgcagccaacggctcggcccgcccgcccacccggtaccctccgcaaccccgctggctgcttgcttgtggactccaagccgctcctcggctcctcggctcccatcagcaccagtgtgagccaagagcgtttccccctctagcgccccggaagacctcgctgatccctcttgcaatgcttggtcctgaaagcactgaggacggcagcctcccgtcgttagcccagtgca"
+
+#here from motifdb package
+Mouse_JASPAR_UNIPROBE = (query(MotifDb,"Mmusculus",c("uniprobe","jaspar")))
+
+# getMatrixSet() function to retrieve sets of motifs. all versions = FALSE means that only most recent version is taken.here from JASPAR package. The JASPAR packages are updated more frequently and so may contain motifs not characterized in the MotifDb package. To access JASPAR package use TFBS tools. The default p-value cutoff is 0.00005. 
+opts <- list()
+opts[["species"]] <- "Mus musculus"
+opts[["collection"]] <- "CORE"
+opts[["all_versions"]] <- FALSE
+motifsToScan <- getMatrixSet(JASPAR2022, opts)
+
+##or alternatively use all of the vertebrates data
+opts <- list()
+opts[["tax_group"]] <- "vertebrates"
+opts[["collection"]] <- "CORE"
+opts[["all_versions"]] <- FALSE
+motifsToScan <- getMatrixSet(JASPAR2022, opts)
+
+motifHits <- matchMotifs(motifsToScan, Ash2l_up_tss, genome = "BSgenome.Mmusculus.UCSC.mm10", bg="genome", out = "matches")
+
+mmMatrix <- motifMatches(motifHits)
+
+#use the colSums() to identify the total occurrence of motifs in TSR sequences. transform named vector into a dataframe using stack. alter column headings using indexes. 
+totalMotifOccurence <- colSums(mmMatrix)
+totalMotifOccurence <- stack(totalMotifOccurence)
+names(totalMotifOccurence)[1] <- "Motif_hits"
+names(totalMotifOccurence)[2] <- "JASPAR_ID"
+
+#importing table containing JASPAR ID with the corresponding gene names.matching jaspar ID in motif occurence table to gene name so can see what TFs were enriched in the dataset. 
+JASPARID_to_Gene = read.csv("C:/Users/elgoode/Dropbox (The Francis Crick)/Ellie/01.23 backup/Documents/Papers data/JASPAR2020 ID to Gene name.csv")
+JASPARID_to_Gene = subset(JASPARID_to_Gene, select = -X )
+
+totalMotifOccurence_gene<- merge(totalMotifOccurence,JASPARID_to_Gene, by  = "JASPAR_ID",all.x=TRUE) 
+totalMotifOccurence_gene$JASPAR_ID=as.character(totalMotifOccurence_gene$JASPAR_ID)
+
+totalMotifOccurenceup=totalMotifOccurence_gene
+
+##and now for downstream promoter
+motifHits <- matchMotifs(motifsToScan, Ash2l_down_tss, genome = "BSgenome.Mmusculus.UCSC.mm10", bg="genome", out = "matches")
+mmMatrix <- motifMatches(motifHits)
+
+#use the colSums() to identify the total occurrence of motifs in TSR sequences. transform named vector into a dataframe using stack. alter column headings using indexes. 
+totalMotifOccurence <- colSums(mmMatrix)
+totalMotifOccurence <- stack(totalMotifOccurence)
+names(totalMotifOccurence)[1] <- "Motif_hits"
+names(totalMotifOccurence)[2] <- "JASPAR_ID"
+
+totalMotifOccurence<- merge(totalMotifOccurence,JASPARID_to_Gene, by  = "JASPAR_ID") 
+totalMotifOccurence$JASPAR_ID=as.character(totalMotifOccurence$JASPAR_ID)
+totalMotifOccurencedown=totalMotifOccurence
